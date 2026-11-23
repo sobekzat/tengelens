@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TengeLens — куда уходят ваши деньги</title>
+<script src="/static/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#14161f;--muted:#6b7080;--line:#e6e8ef;--accent:#e5372b;--accent2:#1f6feb;--good:#1a9e5a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1117;--card:#181b24;--ink:#eef0f6;--muted:#9aa0b2;--line:#2a2f3c}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1120px;margin:0 auto;padding:24px 16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:22px}.logo span{color:var(--accent)}
+.hero{padding:40px 0 24px}.hero h1{font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 12px}
+.hero p{color:var(--muted);max-width:640px;margin:0 0 20px}
+.btn{border:0;border-radius:10px;padding:12px 18px;font-weight:600;cursor:pointer;font-size:15px}
+.btn-primary{background:var(--accent);color:#fff}.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.drop{display:block;border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;background:var(--card);cursor:pointer}
+.drop.over{border-color:var(--accent)}
+.grid{display:grid;gap:16px}.g4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.kpi .v{font-size:26px;font-weight:800}.kpi .l{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+td.n{text-align:right;font-variant-numeric:tabular-nums}.neg{color:var(--accent)}.pos{color:var(--good)}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);font-size:12px}
+.tips li{margin:6px 0}.hidden{display:none}.muted{color:var(--muted)}
+.scroll{max-height:420px;overflow:auto}
+.pro{background:linear-gradient(135deg,#1f6feb,#e5372b);color:#fff;border:0}.pro .btn{background:#fff;color:#14161f}
+.err{color:var(--accent);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo">Tenge<span>Lens</span></div>
+  <div class="muted">🔒 Файл обрабатывается в памяти и не сохраняется</div>
+</header>
+
+<section class="hero">
+  <h1>Загрузите выписку — за 5 секунд увидите, куда уходят деньги</h1>
+  <p>ML сам разложит траты по категориям, найдёт забытые подписки, подозрительные списания и спрогнозирует расходы на следующий месяц. Поддерживается PDF-выписка Kaspi Gold и CSV любого банка.</p>
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept=".pdf,.csv" hidden>
+    <div><b>Перетащите файл сюда</b> или нажмите, чтобы выбрать</div>
+    <div class="muted">PDF Kaspi Gold · CSV (дата, сумма, описание)</div>
+  </label>
+  <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="demo">Посмотреть на демо-данных</button>
+  </div>
+  <div class="err" id="err"></div>
+</section>
+
+<section id="report" class="hidden">
+  <p class="muted" id="period"></p>
+  <div class="grid g4">
+    <div class="card kpi"><div class="l">Расходы за период</div><div class="v" id="k-spend"></div></div>
+    <div class="card kpi"><div class="l">Доходы</div><div class="v" id="k-income"></div></div>
+    <div class="card kpi"><div class="l">Прогноз на след. месяц</div><div class="v" id="k-fc"></div></div>
+    <div class="card kpi"><div class="l">Подписки в год</div><div class="v" id="k-subs"></div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h2>Категории</h2><canvas id="c-cat" height="260"></canvas></div>
+    <div class="card"><h2>По месяцам</h2><canvas id="c-month" height="260"></canvas></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h2>💡 Инсайты</h2><ul class="tips" id="tips"></ul></div>
+    <div class="card"><h2>🔁 Регулярные платежи</h2><table id="subs"></table></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h2>⚠️ Необычные траты</h2><table id="anom"></table></div>
+    <div class="card"><h2>🏆 Топ мест</h2><table id="top"></table></div>
+  </div>
+  <div class="card pro" style="margin-top:16px">
+    <h2>TengeLens Pro — 990 ₸/мес</h2>
+    <p>История за год, семейный бюджет, лимиты по категориям с уведомлениями в Telegram, PDF-отчёт для подачи на ипотеку/визу.</p>
+    <button class="btn">Попробовать 7 дней бесплатно</button>
+  </div>
+  <div class="card" style="margin-top:16px"><h2>Все операции</h2><div class="scroll"><table id="tx"></table></div></div>
+</section>
+</div>
+
+<script>
+const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₸';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COLORS = ['#e5372b','#1f6feb','#1a9e5a','#f2a50c','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#64748b','#14b8a6','#a855f7','#eab308','#0ea5e9','#ef4444','#22c55e'];
+let charts = [];
+
+async function send(file) {
+  const fd = new FormData(); fd.append('file', file);
+  return handle(fetch('/api/analyze', {method:'POST', body: fd}));
+}
+async function handle(promise) {
+  const err = document.getElementById('err'); err.textContent = 'Анализируем…';
+  try {
+    const r = await promise; const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Ошибка');
+    err.textContent = ''; render(data);
+  } catch (e) { err.textContent = e.message; }
+}
+function rows(el, head, list, fn) {
+  document.getElementById(el).innerHTML = list.length
+    ? '<tr>' + head.map(h => `<th>${h}</th>`).join('') + '</tr>' + list.map(fn).join('')
+    : '<tr><td class="muted">Ничего не найдено</td></tr>';
+}
+function render(d) {
+  document.getElementById('report').classList.remove('hidden');
+  document.getElementById('period').textContent = `Период: ${d.period.from} — ${d.period.to} · ${d.totals.transactions} операций`;
+  document.getElementById('k-spend').textContent = fmt(d.totals.spend);
+  document.getElementById('k-income').textContent = fmt(d.totals.income);
+  document.getElementById('k-fc').textContent = fmt(d.forecast.total);
+  document.getElementById('k-subs').textContent = fmt(d.subscriptions.reduce((a, s) => a + s.yearly, 0));
+  document.getElementById('tips').innerHTML = d.insights.map(t => `<li>${esc(t)}</li>`).join('');
+  rows('subs', ['Сервис','В месяц','В год'], d.subscriptions, s => `<tr><td>${esc(s.merchant)}</td><td class="n">${fmt(s.monthly)}</td><td class="n">${fmt(s.yearly)}</td></tr>`);
+  rows('anom', ['Дата','Где','Сумма','Обычно'], d.anomalies, a => `<tr><td>${a.date}</td><td>${esc(a.description)}</td><td class="n neg">${fmt(a.amount)}</td><td class="n muted">${fmt(a.typical)}</td></tr>`);
+  rows('top', ['Место','Раз','Сумма'], d.top_merchants, m => `<tr><td>${esc(m.merchant)}</td><td class="n">${m.count}</td><td class="n">${fmt(m.sum)}</td></tr>`);
+  rows('tx', ['Дата','Описание','Категория','Сумма'], d.transactions, t => `<tr><td>${t.date}</td><td>${esc(t.description)}</td><td><span class="tag">${esc(t.category)}</span></td><td class="n ${t.amount<0?'neg':'pos'}">${fmt(t.amount)}</td></tr>`);
+  charts.forEach(c => c.destroy()); charts = [];
+  if (!window.Chart) return;
+  const cats = Object.keys(d.by_category);
+  charts.push(new Chart(document.getElementById('c-cat'), {type:'doughnut',
+    data:{labels:cats, datasets:[{data:cats.map(c => d.by_category[c]), backgroundColor:COLORS}]},
+    options:{plugins:{legend:{position:'right'}}}}));
+  charts.push(new Chart(document.getElementById('c-month'), {type:'bar',
+    data:{labels:d.by_month.map(m => m.month), datasets:[
+      {label:'Расходы', data:d.by_month.map(m => m.spend), backgroundColor:'#e5372b'},
+      {label:'Доходы', data:d.by_month.map(m => m.income), backgroundColor:'#1a9e5a'}]}}));
+}
+const drop = document.getElementById('drop'), input = document.getElementById('file');
+input.addEventListener('change', () => input.files[0] && send(input.files[0]));
+['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.add('over');}));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.remove('over');}));
+drop.addEventListener('drop', ev => ev.dataTransfer.files[0] && send(ev.dataTransfer.files[0]));
+document.getElementById('demo').addEventListener('click', () => handle(fetch('/api/demo')));
+</script>
+</body>
+</html>
